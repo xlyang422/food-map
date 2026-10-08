@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高雄義大利餐廳美食地圖 | Kaohsiung Italian Cuisine Map</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        italy: {
+                            red: '#A61C1C',
+                            darkRed: '#7A1212',
+                            green: '#1E5E3A',
+                            gold: '#D4AF37',
+                            cream: '#FAF6F0',
+                            charcoal: '#2B2B2B'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'PingFang TC', 'Microsoft JhengHei', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS for Custom Map Markers and Scrollbar -->
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Leaflet Popup Styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 1rem;
+            padding: 0.25rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        .leaflet-popup-content {
+            margin: 0.75rem 1rem;
+            line-height: 1.5;
+        }
+
+        /* Custom Marker Animation */
+        .custom-pin {
+            transition: all 0.2s ease-in-out;
+        }
+        .custom-pin:hover {
+            transform: scale(1.2) translateY(-4px);
+        }
+        .active-pin {
+            animation: bounce 0.6s infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-8px); }
+        }
+
+        /* Card highlight class */
+        .card-active {
+            border-color: #A61C1C !important;
+            background-color: #FFF8F8 !important;
+            box-shadow: 0 4px 14px 0 rgba(166, 28, 28, 0.15) !important;
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-50 font-sans text-slate-800 flex flex-col md:flex-row overflow-hidden">
+
+    <!-- Left Sidebar Panel -->
+    <aside class="w-full md:w-[450px] lg:w-[480px] h-1/2 md:h-full flex flex-col bg-white border-r border-slate-200 z-20 shadow-lg shrink-0">
+        
+        <!-- Header Section -->
+        <header class="p-4 md:p-5 bg-gradient-to-r from-italy-darkRed to-italy-red text-white shadow-md">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">🍕</span>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-tight">高雄義大利餐廳地圖</h1>
+                </div>
+                <span id="restaurantCount" class="text-xs bg-amber-400 text-italy-darkRed font-bold px-2.5 py-1 rounded-full shadow-sm">
+                    載入中...
+                </span>
+            </div>
+            <p class="text-xs text-red-100 flex items-center gap-1 opacity-90">
+                <i class="fa-solid fa-utensils text-amber-300"></i> 精選高雄 20 家道地義式麵館、窯烤披薩與義式餐酒館
+            </p>
+        </header>
+
+        <!-- Search & Filter Controls -->
+        <div class="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+            <!-- Search Bar -->
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="搜尋店名、地址或關鍵字（如：披薩、手工麵）..." 
+                    class="w-full pl-10 pr-9 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-italy-red focus:border-transparent transition"
+                >
+                <button id="clearSearch" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-circle-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- District Filter Chips -->
+            <div>
+                <div class="text-xs font-semibold text-slate-500 mb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-location-dot text-italy-red mr-1"></i>行政區快速篩選：</span>
+                    <button id="resetFilterBtn" class="text-italy-red hover:underline text-[11px] font-normal hidden">重置篩選</button>
+                </div>
+                <div id="districtContainer" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                    <!-- District buttons generated via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Restaurant Cards List -->
+        <main id="restaurantList" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <!-- Cards generated dynamically via JavaScript -->
+        </main>
+
+        <!-- Footer Info -->
+        <footer class="p-3 text-center text-xs text-slate-400 bg-slate-100 border-t border-slate-200">
+            高雄義大利餐廳特輯 &copy; 2026 資料庫完整收錄
+        </footer>
+    </aside>
+
+    <!-- Right Map View Container -->
+    <section class="w-full md:flex-1 h-1/2 md:h-full relative z-10">
+        <div id="map" class="w-full h-full bg-slate-100"></div>
+
+        <!-- Floating Reset Map View Button -->
+        <button id="recenterMapBtn" title="重置地圖視野" class="absolute bottom-6 right-6 bg-white hover:bg-slate-50 text-slate-700 p-3 rounded-full shadow-lg border border-slate-200 z-[1000] flex items-center justify-center hover:scale-105 active:scale-95 transition">
+            <i class="fa-solid fa-arrows-to-dot text-lg text-italy-red"></i>
+        </button>
+    </section>
+
+    <!-- JavaScript Application Code -->
+    <script>
+        // Exact 20 items from CSV with coordinates pre-processed
+        const restaurants = [
+            {
+                id: 0,
+                name: "解憂好食商行",
+                district: "新興區",
+                phone: "07-2151638",
+                address: "高雄市新興區仁愛二街16號",
+                review: "老字號復古風格小店，義大利麵與燉飯表現出色，氣氛溫馨。",
+                lat: 22.6231,
+                lng: 120.3013
+            },
+            {
+                id: 1,
+                name: "樂食義 Let's Eat",
+                district: "新興區",
+                phone: "07-2233882",
+                address: "高雄市新興區中正二路230號",
+                review: "主打多款自製手工特色麵條（如雲朵麵、米粒麵），口感Q彈有嚼勁。",
+                lat: 22.6312,
+                lng: 120.3087
+            },
+            {
+                id: 2,
+                name: "Di TRIPPA 豬肚小餐館",
+                district: "苓雅區",
+                phone: "07-2258205",
+                address: "高雄市苓雅區民族二路4巷30·32號",
+                review: "台美復古風小餐館，清炒海鮮義大利麵與特製前菜廣受好評。",
+                lat: 22.6288,
+                lng: 120.3155
+            },
+            {
+                id: 3,
+                name: "ViNO.SO",
+                district: "苓雅區",
+                phone: "07-7225252",
+                address: "高雄市苓雅區林德街28號",
+                review: "鄰近文化中心，提供美味手工義大利餃與特色麵食，環境寬敞舒適。",
+                lat: 22.6225,
+                lng: 120.3178
+            },
+            {
+                id: 4,
+                name: "Belfort Bistro 貝佛街餐酒坊",
+                district: "前金區",
+                phone: "07-2819876",
+                address: "高雄市前金區前金二街83號",
+                review: "餐點份量足夠且道地，焗烤波隆納千層麵與馬鈴薯玉琪為熱門必點。",
+                lat: 22.6253,
+                lng: 120.2941
+            },
+            {
+                id: 5,
+                name: "C'est Bon Bar & Restaurant",
+                district: "鼓山區",
+                phone: "07-5539328",
+                address: "高雄市鼓山區美術東六街149號",
+                review: "美術館週邊質感餐酒館，排餐與經典義大利麵調味細緻，適合晚間聚餐。",
+                lat: 22.6565,
+                lng: 120.2905
+            },
+            {
+                id: 6,
+                name: "PASTAIO (高雄店)",
+                district: "左營區",
+                phone: "07-5222278",
+                address: "高雄市左營區新慶路286號",
+                review: "台北知名生義大利麵品牌，雪崩起司肉醬麵與多款現做生麵拍照打卡熱門。",
+                lat: 22.6685,
+                lng: 120.3021
+            },
+            {
+                id: 7,
+                name: "菲.Ra Ra義式餐酒館",
+                district: "左營區",
+                phone: "07-3460882",
+                address: "高雄市左營區政德路581號",
+                review: "庭園風造景環境舒適，適合浪漫約會與家庭聚餐，餐點選擇豐富。",
+                lat: 22.6789,
+                lng: 120.3065
+            },
+            {
+                id: 8,
+                name: "帕狄尼諾 Padrino",
+                district: "三民區",
+                phone: "07-3107608",
+                address: "高雄市三民區大裕路252號",
+                review: "道地義式料理風格，燉飯與經典義大利麵口碑極佳，質感溫馨。",
+                lat: 22.6592,
+                lng: 120.3238
+            },
+            {
+                id: 9,
+                name: "樓梯腳",
+                district: "鼓山區",
+                phone: "無提供電話",
+                address: "高雄市鼓山區登山街34-1號",
+                review: "西子灣老宅平價義大利麵，醬汁濃郁入味，CP值極高。",
+                lat: 22.6221,
+                lng: 120.2708
+            },
+            {
+                id: 10,
+                name: "朵莉小屋",
+                district: "鼓山區",
+                phone: "07-5520082",
+                address: "高雄市鼓山區華榮路27號",
+                review: "北高雄平價義式料理，青醬與白醬表現穩定，家庭用餐首選。",
+                lat: 22.6610,
+                lng: 120.2982
+            },
+            {
+                id: 11,
+                name: "義氣豐發鮮食專賣",
+                district: "左營區",
+                phone: "07-5508120",
+                address: "高雄市左營區明華一路158號",
+                review: "主打新鮮海鮮食材與多種獨門醬汁組合，CP值高且用餐環境乾淨。",
+                lat: 22.6621,
+                lng: 120.3045
+            },
+            {
+                id: 12,
+                name: "Dor,留 樂樂香港店 (鹽埕店)",
+                district: "鹽埕區",
+                phone: "07-5215203",
+                address: "高雄市鹽埕區玖興里大勇路181號",
+                review: "鹽埕駁二周邊人氣店家，自製手工義大利麵條與堅果青醬系列相當受歡迎。",
+                lat: 22.6258,
+                lng: 120.2820
+            },
+            {
+                id: 13,
+                name: "皮諾丘 PINOCHIO",
+                district: "前鎮區",
+                phone: "07-3388388",
+                address: "高雄市前鎮區林森三路193巷22號",
+                review: "溫馨巷弄小館，拿坡里窯烤披薩與道地義大利麵口味相當地道。",
+                lat: 22.6148,
+                lng: 120.3082
+            },
+            {
+                id: 14,
+                name: "波比波比 Poppy Poppy",
+                district: "新興區",
+                phone: "07-2228836",
+                address: "高雄市新興區民生一路201號",
+                review: "環境溫馨明亮，提供豐富的白醬與清炒選擇，套餐超值。",
+                lat: 22.6272,
+                lng: 120.3042
+            },
+            {
+                id: 15,
+                name: "又見麻糬 Mochi Pasta",
+                district: "苓雅區",
+                phone: "07-3380026",
+                address: "高雄市苓雅區興中二路67號",
+                review: "結合創意食材與經典醬汁，價格平實，極受附近學生與上班族喜愛。",
+                lat: 22.6178,
+                lng: 120.3031
+            },
+            {
+                id: 16,
+                name: "好說洋食吧",
+                district: "三民區",
+                phone: "07-3221235",
+                address: "高雄市三民區吉林街142號",
+                review: "熱河商圈人氣洋食館，提供高CP值的義大利麵與焗烤飯。",
+                lat: 22.6468,
+                lng: 120.3042
+            },
+            {
+                id: 17,
+                name: "好農食堂",
+                district: "鳳山區",
+                phone: "07-7405288",
+                address: "高雄市鳳山區光復路二段221號",
+                review: "使用在地小農新鮮蔬果與食材，醬汁清爽不油膩，健康美味。",
+                lat: 22.6292,
+                lng: 120.3475
+            },
+            {
+                id: 18,
+                name: "佐佐義 Cucina Pasta",
+                district: "前金區",
+                phone: "07-2816868",
+                address: "高雄市前金區民生二路192號",
+                review: "高雄老牌平價義式餐廳，品項選擇極多，環境寬敞適合聚餐。",
+                lat: 22.6258,
+                lng: 120.2968
+            },
+            {
+                id: 19,
+                name: "薄多義 Bite 2 Eat (文衡店)",
+                district: "鳳山區",
+                phone: "07-7678855",
+                address: "高雄市鳳山區文衡路592號",
+                review: "知名連鎖品牌，義大利麵與窯烤手工披薩口味穩定，聚餐氣氛佳。",
+                lat: 22.6421,
+                lng: 120.3542
+            }
+        ];
+
+        let map;
+        let markersGroup;
+        const markerMap = new Map();
+        let currentSelectedDistrict = "ALL";
+        let currentSearchQuery = "";
+        let activeCardId = null;
+
+        // Kaohsiung Center Coordinates
+        const KAOHSIUNG_CENTER = [22.6380, 120.3080];
+        const DEFAULT_ZOOM = 13;
+
+        // DOM elements
+        const restaurantList = document.getElementById('restaurantList');
+        const districtContainer = document.getElementById('districtContainer');
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearch');
+        const restaurantCountEl = document.getElementById('restaurantCount');
+        const resetFilterBtn = document.getElementById('resetFilterBtn');
+        const recenterMapBtn = document.getElementById('recenterMapBtn');
+
+        function initMap() {
+            // Initialize Leaflet Map
+            map = L.map('map', {
+                zoomControl: false
+            }).setView(KAOHSIUNG_CENTER, DEFAULT_ZOOM);
+
+            // Add Zoom Control at Top Right
+            L.control.zoom({ position: 'topright' }).addTo(map);
+
+            // OpenStreetMap Tile Layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            markersGroup = L.layerGroup().addTo(map);
+        }
+
+        function createCustomIcon(isActive = false) {
+            const color = isActive ? '#A61C1C' : '#2D5A27';
+            const size = isActive ? 38 : 30;
+            
+            const svgHtml = `
+                <svg width="${size}" height="${size}" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M19 0C11.268 0 5 6.268 5 14C5 24.5 19 38 19 38C19 38 33 24.5 33 14C33 6.268 26.732 0 19 0Z" fill="${color}"/>
+                    <circle cx="19" cy="14" r="8" fill="white"/>
+                    <text x="19" y="18" font-size="10" font-weight="bold" fill="${color}" text-anchor="middle">🍝</text>
+                </svg>
+            `;
+
+            return L.divIcon({
+                html: svgHtml,
+                className: `custom-pin ${isActive ? 'active-pin' : ''}`,
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size],
+                popupAnchor: [0, -size]
+            });
+        }
+
+        function renderDistrictFilters() {
+            // Extract unique districts
+            const districts = ["ALL", ...new Set(restaurants.map(r => r.district))];
+
+            districtContainer.innerHTML = '';
+            districts.forEach(dist => {
+                const btn = document.createElement('button');
+                const isSelected = dist === currentSelectedDistrict;
+                btn.className = `px-2.5 py-1 text-xs rounded-lg font-medium transition duration-150 ${
+                    isSelected 
+                        ? 'bg-italy-red text-white shadow-sm ring-2 ring-italy-red ring-offset-1' 
+                        : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                }`;
+                btn.textContent = dist === "ALL" ? "全部區域" : dist;
+                btn.addEventListener('click', () => {
+                    currentSelectedDistrict = dist;
+                    renderDistrictFilters();
+                    filterAndRender();
+                });
+                districtContainer.appendChild(btn);
+            });
+
+            // Toggle reset button visibility
+            if (currentSelectedDistrict !== "ALL" || currentSearchQuery !== "") {
+                resetFilterBtn.classList.remove('hidden');
+            } else {
+                resetFilterBtn.classList.add('hidden');
+            }
+        }
+
+        function filterAndRender() {
+            markersGroup.clearLayers();
+            markerMap.clear();
+
+            // Filter logic
+            const filtered = restaurants.filter(item => {
+                const matchDistrict = currentSelectedDistrict === "ALL" || item.district === currentSelectedDistrict;
+                const matchQuery = currentSearchQuery === "" || 
+                    item.name.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+                    item.address.toLowerCase().includes(currentSearchQuery.toLowerCase()) ||
+                    item.review.toLowerCase().includes(currentSearchQuery.toLowerCase());
+                return matchDistrict && matchQuery;
+            });
+
+            // Update Counter
+            restaurantCountEl.textContent = `共 ${filtered.length} 家`;
+
+            // Render Cards List
+            restaurantList.innerHTML = '';
+
+            if (filtered.length === 0) {
+                restaurantList.innerHTML = `
+                    <div class="text-center py-12 px-4">
+                        <i class="fa-solid fa-utensils text-4xl text-slate-300 mb-3"></i>
+                        <p class="text-slate-500 font-medium text-sm">沒有找到符合條件的義大利餐廳</p>
+                        <p class="text-xs text-slate-400 mt-1">請嘗試變更搜尋關鍵字或選擇其他區域</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(item => {
+                // 1. Create Card Element
+                const card = document.createElement('div');
+                card.id = `card-${item.id}`;
+                card.className = `p-4 bg-white rounded-xl border border-slate-200 hover:border-italy-red/50 hover:shadow-md transition duration-200 cursor-pointer relative group`;
+                
+                // Edge Case: Handle No Phone Number
+                const hasPhone = item.phone && item.phone !== "無提供電話";
+                const phoneButton = hasPhone 
+                    ? `<a href="tel:${item.phone}" onclick="event.stopPropagation()" class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-100 hover:bg-italy-green hover:text-white text-slate-700 text-xs font-medium rounded-lg transition">
+                        <i class="fa-solid fa-phone text-[11px]"></i> 撥打電話
+                       </a>`
+                    : `<button disabled class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-100 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed opacity-60">
+                        <i class="fa-solid fa-phone-slash text-[11px]"></i> 無提供電話
+                       </button>`;
+
+                // Google Map Navigation URL
+                const navUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + item.address)}`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1.5">
+                        <h3 class="font-bold text-slate-900 text-base group-hover:text-italy-red transition">${item.name}</h3>
+                        <span class="text-[11px] font-semibold text-italy-green bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shrink-0">
+                            ${item.district}
+                        </span>
+                    </div>
+
+                    <p class="text-xs text-slate-500 mb-2 flex items-start gap-1">
+                        <i class="fa-solid fa-location-dot text-slate-400 mt-0.5 shrink-0"></i>
+                        <span>${item.address}</span>
+                    </p>
+
+                    <div class="bg-amber-50/60 border border-amber-100 rounded-lg p-2.5 mb-3">
+                        <p class="text-xs text-amber-900/90 leading-relaxed italic">
+                            "${item.review}"
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
+                        ${phoneButton}
+                        <a href="${navUrl}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-3 bg-slate-100 hover:bg-italy-red hover:text-white text-slate-700 text-xs font-medium rounded-lg transition">
+                            <i class="fa-solid fa-diamond-turn-right text-[11px]"></i> 導航路線
+                        </a>
+                    </div>
+                `;
+
+                // Card Click Event -> Fly to Marker
+                card.addEventListener('click', () => {
+                    selectRestaurant(item.id, true);
+                });
+
+                restaurantList.appendChild(card);
+
+                // 2. Create Map Marker
+                const marker = L.marker([item.lat, item.lng], {
+                    icon: createCustomIcon(false)
+                });
+
+                // Popup content
+                const popupContent = `
+                    <div class="space-y-2 min-w-[200px]">
+                        <div class="flex items-center justify-between border-b pb-1">
+                            <span class="font-bold text-slate-900 text-sm">${item.name}</span>
+                            <span class="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">${item.district}</span>
+                        </div>
+                        <p class="text-xs text-slate-600"><i class="fa-solid fa-location-dot text-italy-red mr-1"></i>${item.address}</p>
+                        <p class="text-xs text-slate-500 italic bg-slate-50 p-1.5 rounded">${item.review}</p>
+                        <div class="pt-1 flex gap-1.5">
+                            <a href="${navUrl}" target="_blank" class="flex-1 text-center py-1 bg-italy-red text-white text-[11px] rounded font-medium block hover:bg-italy-darkRed transition">
+                                <i class="fa-solid fa-location-arrow"></i> 導航
+                            </a>
+                        </div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+
+                // Marker Click Event
+                marker.on('click', () => {
+                    selectRestaurant(item.id, false);
+                });
+
+                markersGroup.addLayer(marker);
+                markerMap.set(item.id, marker);
+            });
+
+            // Auto fit bounds if filtered list is not empty
+            if (filtered.length > 0) {
+                const groupBounds = L.featureGroup(Array.from(markerMap.values())).getBounds();
+                map.fitBounds(groupBounds, { padding: [40, 40], maxZoom: 15 });
+            }
+        }
+
+        function selectRestaurant(id, shouldFly = true) {
+            const item = restaurants.find(r => r.id === id);
+            if (!item) return;
+
+            // Reset previously active card styling
+            if (activeCardId !== null) {
+                const prevCard = document.getElementById(`card-${activeCardId}`);
+                if (prevCard) prevCard.classList.remove('card-active');
+                
+                const prevMarker = markerMap.get(activeCardId);
+                if (prevMarker) prevMarker.setIcon(createCustomIcon(false));
+            }
+
+            activeCardId = id;
+
+            // Highlight current card
+            const currentCard = document.getElementById(`card-${id}`);
+            if (currentCard) {
+                currentCard.classList.add('card-active');
+                currentCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            // Highlight & Open Popup on Map
+            const currentMarker = markerMap.get(id);
+            if (currentMarker) {
+                currentMarker.setIcon(createCustomIcon(true));
+                currentMarker.openPopup();
+
+                if (shouldFly) {
+                    map.flyTo([item.lat, item.lng], 16, {
+                        animate: true,
+                        duration: 1
+                    });
+                }
+            }
+        }
+
+        // Search Input Event
+        searchInput.addEventListener('input', (e) => {
+            currentSearchQuery = e.target.value.trim();
+            clearSearchBtn.classList.toggle('hidden', currentSearchQuery === '');
+            filterAndRender();
+        });
+
+        // Clear Search
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            currentSearchQuery = '';
+            clearSearchBtn.classList.add('hidden');
+            filterAndRender();
+        });
+
+        // Reset Filter Button
+        resetFilterBtn.addEventListener('click', () => {
+            currentSelectedDistrict = "ALL";
+            currentSearchQuery = "";
+            searchInput.value = "";
+            clearSearchBtn.classList.add('hidden');
+            renderDistrictFilters();
+            filterAndRender();
+            map.flyTo(KAOHSIUNG_CENTER, DEFAULT_ZOOM);
+        });
+
+        // Recenter Map Button
+        recenterMapBtn.addEventListener('click', () => {
+            if (markerMap.size > 0) {
+                const groupBounds = L.featureGroup(Array.from(markerMap.values())).getBounds();
+                map.fitBounds(groupBounds, { padding: [40, 40], maxZoom: 15 });
+            } else {
+                map.flyTo(KAOHSIUNG_CENTER, DEFAULT_ZOOM);
+            }
+        });
+
+        window.onload = function() {
+            initMap();
+            renderDistrictFilters();
+            filterAndRender();
+        };
+    </script>
+</body>
+</html>
